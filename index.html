@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Whiteboard Studio</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<style>
+    * {
+        font-family: 'Inter', sans-serif;
+    }
+    .tool-active {
+        background-color: #e2e8f0;
+    }
+    #canvas {
+        touch-action: none;
+    }
+    .color-swatch {
+        width: 24px;
+        height: 24px;
+        border-radius: 4px;
+        cursor: pointer;
+        border: 2px solid transparent;
+    }
+    .color-swatch.active {
+        border-color: #4a5568;
+    }
+    .tooltip {
+        position: relative;
+    }
+    .tooltip:hover:after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #2d3748;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        white-space: nowrap;
+        z-index: 10;
+    }
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        z-index: 1000;
+    }
+    .modal.active {
+        display: flex;
+    }
+</style>
+<body class="bg-gray-100 h-screen overflow-hidden">
+    <!-- Top Toolbar -->
+    <div class="flex flex-col h-full">
+        <div class="bg-white shadow-md p-2 flex flex-wrap gap-2 items-center justify-between">
+            <!-- Left Section -->
+            <div class="tools flex gap-2">
+                <button id="select" class="tool tooltip p-2 rounded hover:bg-gray-200" data-tooltip="Select (V)">
+                    <i class="bi bi-cursor"></i>
+                </button>
+                <button id="hand" class="tool tooltip p-2 rounded hover:bg-gray-200" data-tooltip="Hand (H)">
+                    <i class="bi bi-hand"></i>
+                </button>
+                <div class="border-r border-gray-300 mx-1"></div>
+                <button id="pencil" class="tool tooltip p-2 rounded hover:bg-gray-200" data-tooltip="Pencil (P)">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button id="rect" class="tool tooltip p-2 rounded hover:bg-gray-200" data-tooltip="Rectangle (R)">
+                    <i class="bi bi-square"></i>
+                </button>
+                <button id="diamond" class="tool tooltip p-2 rounded hover:bg-gray-200" data-tooltip="Diamond (D)">
+                    <i class="bi bi-diamond"></i>
+                </button>
+                <button id="circle" class="tool tooltip p-2 rounded hover:bg-gray-200" data-tooltip="Circle (O)">
+                    <i class="bi bi-circle"></i>
+                </button>
+                <button id="line" class="tool tooltip p-2 rounded hover:bg-gray-200" data-tooltip="Line (L)">
+                    <i class="bi bi-slash-lg"></i>
+                </button>
+                <button id="arrow" class="tool tooltip p-2 rounded hover:bg-gray-200" data-tooltip="Arrow (A)">
+                    <i class="bi bi-arrow-right"></i>
+                </button>
+                <button id="text" class="tool tooltip p-2 rounded hover:bg-gray-200" data-tooltip="Text (T)">
+                    <i class="bi bi-font"></i>
+                </button>
+            </div>
+
+            <!-- Middle Section -->
+            <div class="controls flex gap-2 items-center">
+                <div class="flex gap-1">
+                    <div class="color-swatch active" style="background: #000000" data-color="#000000"></div>
+                    <div class="color-swatch" style="background: #d4d4d8" data-color="#d4d4d8"></div>
+                    <div class="color-swatch" style="background: #ef4444" data-color="#ef4444"></div>
+                    <div class="color-swatch" style="background: #22c55e" data-color="#22c55e"></div>
+                    <div class="color-swatch" style="background: #3b82f6" data-color="#3b82f6"></div>
+                    <input type="color" id="colorPicker" class="hidden">
+                </div>
+                <select id="strokeWidth" class="rounded border p-1">
+                    <option value="1">1px</option>
+                    <option value="2">2px</option>
+                    <option value="4" selected>4px</option>
+                    <option value="6">6px</option>
+                </select>
+                <select id="fontSize" class="rounded border p-1">
+                    <option value="12">12px</option>
+                    <option value="16" selected>16px</option>
+                    <option value="20">20px</option>
+                    <option value="24">24px</option>
+                    <option value="32">32px</option>
+                </select>
+            </div>
+
+            <!-- Right Section -->
+            <div class="actions flex gap-2">
+                <button id="undo" class="tooltip p-2 rounded hover:bg-gray-200" data-tooltip="Undo (⌘Z)">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+                <button id="redo" class="tooltip p-2 rounded hover:bg-gray-200" data-tooltip="Redo (⌘Y)">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+                <div class="border-r border-gray-300 mx-1"></div>
+                <button id="clear" class="tooltip p-2 rounded hover:bg-gray-200" data-tooltip="Clear">
+                    <i class="bi bi-trash"></i>
+                </button>
+                <button id="save" class="tooltip p-2 rounded hover:bg-gray-200" data-tooltip="Save">
+                    <i class="bi bi-download"></i>
+                </button>
+                <button id="share" class="tooltip p-2 rounded hover:bg-gray-200" data-tooltip="Share">
+                    <i class="bi bi-share"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Canvas Container -->
+        <div class="flex-grow relative overflow-hidden">
+            <canvas id="canvas" class="bg-white absolute top-0 left-0"></canvas>
+        </div>
+    </div>
+
+    <!-- Share Modal -->
+    <div id="shareModal" class="modal">
+        <div class="bg-white rounded-lg p-6 m-auto max-w-md w-full">
+            <h3 class="text-xl font-semibold mb-4">Share Whiteboard</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Collaboration Link</label>
+                    <div class="mt-1 flex rounded-md shadow-sm">
+                        <input type="text" id="shareLink" readonly class="flex-1 min-w-0 block w-full px-3 py-2 rounded-md border border-gray-300 text-sm" value="">
+                        <button onclick="copyShareLink()" class="ml-2 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                            Copy
+                        </button>
+                    </div>
+                </div>
+                <div class="flex justify-end mt-4">
+                    <button onclick="closeShareModal()" class="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize variables
+        let isDrawing = false;
+        let currentTool = 'pencil';
+        let startX, startY;
+        let lastX, lastY;
+        let currentColor = '#000000';
+        let scale = 1;
+        let offset = { x: 0, y: 0 };
+        let isTextMode = false;
+        let activeText = null;
+
+        // Canvas setup
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Initialize canvas size
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            canvas.width = container.offsetWidth;
+            canvas.height = container.offsetHeight;
+            redraw();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Tool selection
+        document.querySelectorAll('.tool').forEach(tool => {
+            tool.addEventListener('click', (e) => {
+                document.querySelectorAll('.tool').forEach(t => t.classList.remove('tool-active'));
+                tool.classList.add('tool-active');
+                currentTool = tool.id;
+                canvas.style.cursor = currentTool === 'hand' ? 'grab' : 'crosshair';
+            });
+        });
+
+        // Color selection
+        document.querySelectorAll('.color-swatch').forEach(swatch => {
+            swatch.addEventListener('click', (e) => {
+                document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+                swatch.classList.add('active');
+                currentColor = swatch.dataset.color;
+                document.getElementById('colorPicker').value = currentColor;
+            });
+        });
+
+        // Event listeners
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseleave', stopDrawing);
+        canvas.addEventListener('touchstart', handleTouch);
+        canvas.addEventListener('touchmove', handleTouch);
+        canvas.addEventListener('touchend', stopDrawing);
+
+        // Key bindings
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                undo();
+            } else if (e.key === 'y' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                redo();
+            }
+            
+            // Tool shortcuts
+            const toolMap = {
+                'v': 'select',
+                'h': 'hand',
+                'p': 'pencil',
+                'r': 'rect',
+                'd': 'diamond',
+                'o': 'circle',
+                'l': 'line',
+                'a': 'arrow',
+                't': 'text'
+            };
+
+            if (toolMap[e.key.toLowerCase()]) {
+                document.getElementById(toolMap[e.key.toLowerCase()]).click();
+            }
+        });
+
+        // Drawing functions
+        function startDrawing(e) {
+            isDrawing = true;
+            const pos = getMousePos(e);
+            startX = lastX = pos.x;
+            startY = lastY = pos.y;
+            
+            ctx.beginPath();
+            ctx.strokeStyle = currentColor;
+            ctx.lineWidth = document.getElementById('strokeWidth').value;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            if (currentTool === 'text') {
+                createTextInput(pos.x, pos.y);
+            }
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            const pos = getMousePos(e);
+            const x = pos.x;
+            const y = pos.y;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            redraw();
+
+            switch(currentTool) {
+                case 'pencil':
+                    ctx.lineTo(x, y);
+                    ctx.stroke();
+                    break;
+                case 'rect':
+                    drawRect(startX, startY, x - startX, y - startY);
+                    break;
+                case 'diamond':
+                    drawDiamond(startX, startY, x - startX, y - startY);
+                    break;
+                case 'circle':
+                    drawCircle(startX, startY, Math.hypot(x - startX, y - startY));
+                    break;
+                case 'line':
+                    drawLine(startX, startY, x, y);
+                    break;
+                case 'arrow':
+                    drawArrow(startX, startY, x, y);
+                    break;
+            }
+
+            lastX = x;
+            lastY = y;
+        }
+
+        function stopDrawing() {
+            if (!isDrawing) return;
+            isDrawing = false;
+            saveState();
+        }
+
+        // Shape drawing functions
+        function drawRect(x, y, w, h) {
+            ctx.beginPath();
+            ctx.rect(x, y, w, h);
+            ctx.stroke();
+        }
+
+        function drawDiamond(x, y, w, h) {
+            ctx.beginPath();
+            ctx.moveTo(x + w/2, y);
+            ctx.lineTo(x + w, y + h/2);
+            ctx.lineTo(x + w/2, y + h);
+            ctx.lineTo(x, y + h/2);
+            ctx.closePath();
+            ctx.stroke();
+        }
+
+        function drawCircle(x, y, r) {
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        function drawArrow(x1, y1, x2, y2) {
+            const headLen = 20;
+            const angle = Math.atan2(y2 - y1, x2 - x1);
+            
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI/6), y2 - headLen * Math.sin(angle - Math.PI/6));
+            ctx.moveTo(x2, y2);
+            ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI/6), y2 - headLen * Math.sin(angle + Math.PI/6));
+            ctx.stroke();
+        }
+
+        // Text input handling
+        function createTextInput(x, y) {
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.style.position = 'absolute';
+            input.style.left = `${x}px`;
+            input.style.top = `${y}px`;
+            input.style.fontSize = `${document.getElementById('fontSize').value}px`;
+            input.style.border = 'none';
+            input.style.outline = 'none';
+            input.style.background = 'transparent';
+            input.style.color = currentColor;
+            input.style.minWidth = '100px';
+
+            input.addEventListener('blur', () => {
+                if (input.value) {
+                    ctx.font = `${input.style.fontSize} sans-serif`;
+                    ctx.fillStyle = currentColor;
+                    ctx.fillText(input.value, x, y + parseInt(input.style.fontSize));
+                    saveState();
+                }
+                input.remove();
+            });
+
+            document.body.appendChild(input);
+            input.focus();
+        }
+
+        // Utility functions
+        function getMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: (e.clientX - rect.left) / scale - offset.x,
+                y: (e.clientY - rect.top) / scale - offset.y
+            };
+        }
+
+        function handleTouch(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent(e.type === 'touchstart' ? 'mousedown' : 'mousemove', {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            canvas.dispatchEvent(mouseEvent);
+        }
+
+        // State management
+        const undoStack = [];
+        const redoStack = [];
+
+        function saveState() {
+            undoStack.push(canvas.toDataURL());
+            redoStack.length = 0;
+        }
+
+        function undo() {
+            if (undoStack.length > 1) {
+                redoStack.push(undoStack.pop());
+                redraw();
+            }
+        }
+
+        function redo() {
+            if (redoStack.length > 0) {
+                undoStack.push(redoStack.pop());
+                redraw();
+            }
+        }
+
+        function redraw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (undoStack.length > 0) {
+                const img = new Image();
+                img.onload = () => ctx.drawImage(img, 0, 0);
+                img.src = undoStack[undoStack.length - 1];
+            }
+        }
+
+        // Action handlers
+        document.getElementById('clear').addEventListener('click', () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            saveState();
+        });
+
+        document.getElementById('save').addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = 'whiteboard.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        });
+
+        // Share functionality
+        document.getElementById('share').addEventListener('click', () => {
+            canvas.toBlob(async (blob) => {
+                try {
+                    if (navigator.share) {
+                        await navigator.share({
+                            files: [new File([blob], 'whiteboard.png', { type: 'image/png' })]
+                        });
+                    } else {
+                        document.getElementById('shareModal').classList.add('active');
+                        document.getElementById('shareLink').value = window.location.href;
+                    }
+                } catch (err) {
+                    console.error('Sharing failed:', err);
+                    document.getElementById('shareModal').classList.add('active');
+                    document.getElementById('shareLink').value = window.location.href;
+                }
+            });
+        });
+
+        function closeShareModal() {
+            document.getElementById('shareModal').classList.remove('active');
+        }
+
+        function copyShareLink() {
+            const linkInput = document.getElementById('shareLink');
+            linkInput.select();
+            document.execCommand('copy');
+            alert('Link copied to clipboard!');
+        }
+
+        // Initialize
+        saveState();
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
